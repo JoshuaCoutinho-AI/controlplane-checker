@@ -1,3 +1,121 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/*
+ * Theme tokens. :root holds the dark palette (the app's default);
+ * .light overrides every token for light mode. Every Tailwind color in
+ * tailwind.config.js reads from these variables, so toggling the
+ * `.light` class on <html> (see ThemeToggle.tsx) re-themes the entire
+ * app instantly with no per-component dark: variants required.
+ * Values are "R G B" triplets (no commas) for Tailwind's
+ * rgb(var(--x) / <alpha-value>) opacity syntax.
+ */
+:root {
+  --c-ink: 13 15 20;
+  --c-panel: 22 25 35;
+  --c-panel-2: 29 33 48;
+  --c-hairline: 38 43 58;
+  --c-paper: 243 241 234;
+  --c-muted: 139 143 163;
+
+  --c-brass: 217 161 91;
+  --c-brass-soft: 232 192 136;
+  --c-brass-dim: 138 106 62;
+
+  --c-signal: 110 143 255;
+  --c-signal-soft: 169 187 255;
+
+  --c-pass: 63 191 143;
+  --c-pass-soft: 42 61 53;
+  --c-log: 217 161 91;
+  --c-log-soft: 61 51 36;
+  --c-block: 229 72 77;
+  --c-block-soft: 61 36 38;
+
+  color-scheme: dark;
+}
+
+.light {
+  --c-ink: 250 249 246;
+  --c-panel: 255 255 255;
+  --c-panel-2: 244 242 236;
+  --c-hairline: 226 222 211;
+  --c-paper: 28 26 23;
+  --c-muted: 117 112 102;
+
+  --c-brass: 179 122 47;
+  --c-brass-soft: 143 96 34;
+  --c-brass-dim: 224 189 138;
+
+  --c-signal: 68 97 214;
+  --c-signal-soft: 44 70 168;
+
+  --c-pass: 27 138 94;
+  --c-pass-soft: 220 240 231;
+  --c-log: 179 122 47;
+  --c-log-soft: 246 233 214;
+  --c-block: 200 55 60;
+  --c-block-soft: 250 226 226;
+
+  color-scheme: light;
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-ink text-paper font-body antialiased;
+    transition: background-color 0.25s ease, color 0.25s ease;
+  }
+
+  h1, h2, h3, .font-display {
+    font-family: '"Fraunces"', serif;
+  }
+
+  ::selection {
+    background-color: rgb(var(--c-brass) / 0.35);
+    color: rgb(var(--c-paper));
+  }
+
+  /* Thin scrollbar themed to match the current palette, rather than the
+     browser default — updates automatically with the CSS variables. */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background-color: rgb(var(--c-hairline));
+    border-radius: 8px;
+    border: 2px solid rgb(var(--c-ink));
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: rgb(var(--c-muted));
+  }
+
+  /* Visible, on-brand keyboard focus rather than removing it. */
+  :focus-visible {
+    outline: 2px solid rgb(var(--c-brass));
+    outline-offset: 2px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Tabular figures for every instrument readout (scores, timestamps,
+   token counts) so digits align as values change. */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}

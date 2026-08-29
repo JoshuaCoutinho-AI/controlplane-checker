@@ -1,9 +1,33 @@
 services:
   backend:
     build: ./backend
-    ports: ["8000:8000"]
-    volumes: ["./backend:/app"]
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=sqlite:///./controlplane.db
+      # Real LLM generation config — see .env.example for details.
+      # Override any of these with `docker compose --env-file .env up`
+      # or by exporting them in your shell before `docker compose up`.
+      - LLM_PROVIDER=${LLM_PROVIDER:-ollama}
+      # host.docker.internal lets the backend container reach Ollama
+      # running on your host machine (not inside a container).
+      - OLLAMA_HOST=${OLLAMA_HOST:-http://host.docker.internal:11434}
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-llama3.2}
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-1.5-flash}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - backend_data:/app
+
   frontend:
     build: ./frontend
-    ports: ["5173:5173"]
-    volumes: ["./frontend:/app"]
+    ports:
+      - "5173:5173"
+    depends_on:
+      - backend
+    environment:
+      - VITE_API_BASE=/api
+
+volumes:
+  backend_data:

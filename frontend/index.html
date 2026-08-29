@@ -2,11 +2,30 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>frontend</title>
+    <meta name="description" content="ControlPlane Checker — live LLM response scoring and severity routing." />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,500&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <!--
+      Set the theme class before first paint, straight from localStorage
+      (falling back to the system preference) — this runs synchronously
+      in <head> so there is no flash of the wrong theme on load. The
+      ThemeToggle component owns writing to localStorage from then on.
+    -->
+    <script>
+      (function () {
+        var stored = localStorage.getItem('cpc-theme')
+        var wantsLight = stored ? stored === 'light' : !window.matchMedia('(prefers-color-scheme: dark)').matches
+        if (wantsLight) document.documentElement.classList.add('light')
+      })()
+    </script>
+    <title>ControlPlane Checker</title>
   </head>
-  <body>
+  <body class="bg-ink">
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
