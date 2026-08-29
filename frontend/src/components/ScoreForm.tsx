@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { ArrowUp, Loader2 } from 'lucide-react'
+import { ArrowUp, Loader2, SlidersHorizontal } from 'lucide-react'
 
 const API_BASE = '/api'
 
@@ -7,63 +7,19 @@ const PROVIDERS = ['ollama', 'gemini'] as const
 type Provider = (typeof PROVIDERS)[number]
 
 interface Props {
+  useCase: string
   onScored?: () => void
 }
 
-/**
- * The signature interaction of this panel: a physical-feeling rocker
- * switch between the two real providers this app can call, rather than
- * a generic dropdown. It's the one choice that changes which real
- * model answers, so it earns a control that feels deliberate to use.
- */
-function ProviderSwitch({ value, onChange }: { value: Provider; onChange: (p: Provider) => void }) {
-  return (
-    <div
-      role="radiogroup"
-      aria-label="Generation provider"
-      className="relative inline-flex rounded-full border border-hairline bg-ink p-1 font-mono text-xs font-medium uppercase tracking-wide"
-    >
-      <div
-        className="absolute inset-y-1 w-[calc(50%-4px)] rounded-full bg-brass shadow-glow transition-transform duration-300 ease-out"
-        style={{ transform: value === 'gemini' ? 'translateX(100%)' : 'translateX(0)' }}
-      />
-      {PROVIDERS.map((p) => (
-        <button
-          key={p}
-          type="button"
-          role="radio"
-          aria-checked={value === p}
-          onClick={() => onChange(p)}
-          className={`relative z-10 w-24 rounded-full py-2 transition-colors duration-300 ${
-            value === p ? 'text-ink' : 'text-muted hover:text-paper'
-          }`}
-        >
-          {p}
-        </button>
-      ))}
-    </div>
-  )
-}
-
-export default function ScoreForm({ onScored }: Props) {
+export default function ScoreForm({ useCase, onScored }: Props) {
   const [prompt, setPrompt] = useState('')
   const [response, setResponse] = useState('')
   const [model, setModel] = useState<Provider>(PROVIDERS[0])
-  const [sessionId, setSessionId] = useState('manual-session')
+  const [sessionId, setSessionId] = useState('demo-session')
   const [showAdvanced, setShowAdvanced] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [lastResult, setLastResult] = useState<{
-    severity: string
-    decision_reason: string
-    generated: boolean
-    llm_provider: string | null
-    response: string
-  } | null>(null)
 
-  // Default the switch to the server's fallback provider on load. From
-  // here, switching is just flipping the toggle — no .env edit or
-  // restart, since the choice travels with each request.
   useEffect(() => {
     fetch(`${API_BASE}/llm/status`)
       .then((r) => r.json())
@@ -73,14 +29,9 @@ export default function ScoreForm({ onScored }: Props) {
       .catch(() => {})
   }, [])
 
-  const willGenerate = response.trim() === ''
-
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!prompt.trim()) {
-      setError('A prompt is required.')
-      return
-    }
+    if (!prompt.trim() || submitting) return
     setSubmitting(true)
     setError(null)
     try {
@@ -91,21 +42,14 @@ export default function ScoreForm({ onScored }: Props) {
           prompt,
           response: response.trim() === '' ? null : response,
           model,
-          session_id: sessionId || 'manual-session',
+          use_case: useCase,
+          session_id: sessionId || 'demo-session',
         }),
       })
       if (!res.ok) {
         const body = await res.json().catch(() => null)
         throw new Error(body?.detail || `Server returned ${res.status}`)
       }
-      const data = await res.json()
-      setLastResult({
-        severity: data.severity,
-        decision_reason: data.decision_reason,
-        generated: data.generated,
-        llm_provider: data.llm_provider,
-        response: data.response,
-      })
       setPrompt('')
       setResponse('')
       onScored?.()
@@ -116,76 +60,111 @@ export default function ScoreForm({ onScored }: Props) {
     }
   }
 
+  // Handle Enter to submit (Shift+Enter for newline)
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      handleSubmit(e)
+    }
+  }
+
   return (
-    <form
-      onSubmit={handleSubmit}
-      className="rounded-3xl border border-hairline bg-panel p-3 shadow-float transition-shadow focus-within:shadow-glow"
-    >
-      <textarea
-        value={prompt}
-        onChange={(e) => setPrompt(e.target.value)}
-        placeholder="Ask something — leave the response blank and a real model will answer it"
-        rows={2}
-        className="w-full resize-none bg-transparent px-3 py-2 text-lg text-paper placeholder:text-muted/70 focus:outline-none"
-      />
-
-      {showAdvanced && (
+    <div className="w-full max-w-3xl mx-auto px-4 mt-auto">
+      <form
+        onSubmit={handleSubmit}
+        className="relative bg-panel border border-hairline rounded-2xl shadow-lg p-3 transition-all focus-within:ring-1 focus-within:ring-brass/30 focus-within:border-brass/50"
+      >
         <textarea
-          value={response}
-          onChange={(e) => setResponse(e.target.value)}
-          placeholder="Or paste your own response here to test a specific scenario — e.g. one with an email address, to see it redacted and blocked"
+          value={prompt}
+          onChange={(e) => setPrompt(e.target.value)}
+          onKeyDown={handleKeyDown}
+          placeholder="Message ControlPlane Checker... (Press Enter to send)"
           rows={2}
-          className="mt-1 w-full resize-none rounded-2xl border border-hairline bg-ink px-3 py-2.5 text-sm text-paper placeholder:text-muted/70 focus:border-brass/60 focus:outline-none"
+          className="w-full resize-none bg-transparent px-3 py-1.5 text-base text-paper placeholder:text-muted/60 focus:outline-none pr-12"
         />
-      )}
-
-      <div className="mt-2 flex flex-wrap items-center gap-2.5 px-1">
-        <ProviderSwitch value={model} onChange={setModel} />
-
-        <button
-          type="button"
-          onClick={() => setShowAdvanced((v) => !v)}
-          className="rounded-full border border-hairline px-3 py-1.5 font-mono text-xs text-muted transition-colors hover:border-brass/40 hover:text-paper"
-        >
-          {showAdvanced ? 'hide custom response' : 'paste a response instead'}
-        </button>
 
         {showAdvanced && (
-          <input
-            value={sessionId}
-            onChange={(e) => setSessionId(e.target.value)}
-            placeholder="session id"
-            className="w-36 rounded-full border border-hairline bg-ink px-3 py-1.5 font-mono text-xs text-paper placeholder:text-muted/70 focus:border-brass/60 focus:outline-none"
-          />
+          <div className="mt-3 border-t border-hairline pt-3 space-y-3">
+            <div>
+              <label className="block text-[10px] uppercase tracking-widest text-muted mb-1.5 font-mono">
+                Paste Custom Response (Optional)
+              </label>
+              <textarea
+                value={response}
+                onChange={(e) => setResponse(e.target.value)}
+                placeholder="Paste response text to bypass live generation (useful for PII / toxicity testing)..."
+                rows={2}
+                className="w-full resize-none rounded-xl border border-hairline bg-ink px-3 py-2 text-sm text-paper placeholder:text-muted/50 focus:border-brass/60 focus:outline-none"
+              />
+            </div>
+            
+            <div className="flex gap-4">
+              <div className="flex-1">
+                <label className="block text-[10px] uppercase tracking-widest text-muted mb-1.5 font-mono">
+                  Session ID
+                </label>
+                <input
+                  type="text"
+                  value={sessionId}
+                  onChange={(e) => setSessionId(e.target.value)}
+                  placeholder="session id"
+                  className="w-full rounded-xl border border-hairline bg-ink px-3 py-1.5 font-mono text-xs text-paper placeholder:text-muted/50 focus:border-brass/60 focus:outline-none"
+                />
+              </div>
+            </div>
+          </div>
         )}
 
-        <button
-          type="submit"
-          disabled={submitting}
-          className="group ml-auto inline-flex h-11 w-11 items-center justify-center rounded-full bg-brass text-ink shadow-glow transition-all hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
-          aria-label={willGenerate ? 'Generate and score' : 'Score it'}
-          title={willGenerate ? 'Generate and score' : 'Score it'}
-        >
-          {submitting ? (
-            <Loader2 size={18} className="animate-spin" />
-          ) : (
-            <ArrowUp size={18} className="transition-transform group-hover:-translate-y-0.5" />
-          )}
-        </button>
-      </div>
+        <div className="mt-2.5 flex items-center justify-between gap-3 border-t border-hairline/50 pt-2 px-1">
+          <div className="flex items-center gap-3">
+            {/* Model Select */}
+            <div className="flex items-center rounded-full bg-ink border border-hairline p-0.5 font-mono text-[10px]">
+              {PROVIDERS.map((p) => (
+                <button
+                  key={p}
+                  type="button"
+                  onClick={() => setModel(p)}
+                  className={`rounded-full px-3 py-1 uppercase tracking-wider transition-colors ${
+                    model === p ? 'bg-brass text-ink font-semibold' : 'text-muted hover:text-paper'
+                  }`}
+                >
+                  {p}
+                </button>
+              ))}
+            </div>
 
-      {error && <p className="mt-3 px-2 text-sm text-block">{error}</p>}
-      {lastResult && !error && (
-        <div className="mt-3 space-y-1 border-t border-hairline px-2 pt-3 text-sm">
-          <p className="text-muted">
-            <span className="font-mono font-semibold text-paper">{lastResult.severity}</span>
-            {' — '}
-            {lastResult.decision_reason}
-            {lastResult.generated && <span className="text-brass-soft"> (via {lastResult.llm_provider})</span>}
-          </p>
-          {lastResult.generated && <p className="italic text-muted/80">&ldquo;{lastResult.response}&rdquo;</p>}
+            {/* Advanced Toggle */}
+            <button
+              type="button"
+              onClick={() => setShowAdvanced((v) => !v)}
+              className={`flex items-center gap-1.5 rounded-full border px-3 py-1 font-mono text-[10px] transition-colors ${
+                showAdvanced 
+                  ? 'border-brass bg-brass/10 text-brass' 
+                  : 'border-hairline text-muted hover:border-brass/40 hover:text-paper'
+              }`}
+            >
+              <SlidersHorizontal size={10} />
+              <span>Advanced</span>
+            </button>
+          </div>
+
+          <button
+            type="submit"
+            disabled={submitting || !prompt.trim()}
+            className="flex h-8 w-8 items-center justify-center rounded-full bg-paper text-ink transition-all hover:bg-brass hover:text-ink disabled:bg-hairline disabled:text-muted disabled:cursor-not-allowed"
+          >
+            {submitting ? (
+              <Loader2 size={14} className="animate-spin" />
+            ) : (
+              <ArrowUp size={14} />
+            )}
+          </button>
         </div>
-      )}
-    </form>
+      </form>
+      {error && <p className="mt-2 px-2 text-xs text-block font-mono">{error}</p>}
+      <p className="mt-2 text-center text-[10px] text-muted/40">
+        ControlPlane Checker can monitor, audit, and override LLM outputs in real-time.
+      </p>
+    </div>
   )
 }

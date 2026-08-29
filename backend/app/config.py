@@ -44,7 +44,6 @@ TOXICITY_KEYWORDS = [
 ]
 
 # --- Performance check ---
-LATENCY_BUDGET_MS = 2500
 HEDGE_PHRASES = [
     "i'm not sure",
     "i cannot verify",
@@ -54,11 +53,36 @@ HEDGE_PHRASES = [
     "i apologize, but",
 ]
 
-# --- Severity router thresholds (0-100 scale, higher = healthier) ---
-SCORE_BLOCK_BELOW = 30  # any single check below this -> critical
-SCORE_LOG_BELOW = 65  # any single check below this -> log
-CORRELATION_BLOCK_FLAGS = {"latency_pii_correlation", "repeated_compound_escalation"}
-CORRELATION_LOG_FLAGS = {"cost_confidence_mismatch"}
+# --- Use Case Policies (dynamic risk tolerances and budgets) ---
+USE_CASE_POLICIES = {
+    "customer_support": {
+        "name": "Customer Support",
+        "description": "Fast, public-facing chat. Low latency budget, strict thresholds, aggressive PII/restricted blocks.",
+        "latency_budget_ms": 1500,
+        "score_block_below": 40,
+        "score_log_below": 70,
+        "correlation_block_flags": {"latency_pii_correlation", "repeated_compound_escalation"},
+        "correlation_log_flags": {"cost_confidence_mismatch"},
+    },
+    "internal_knowledge": {
+        "name": "Internal Knowledge",
+        "description": "Employee knowledge assistant. Relaxed latency budget, medium thresholds, flags for review, blocks on PII only.",
+        "latency_budget_ms": 4000,
+        "score_block_below": 25,
+        "score_log_below": 60,
+        "correlation_block_flags": {"repeated_compound_escalation"},
+        "correlation_log_flags": {"cost_confidence_mismatch", "latency_pii_correlation"},
+    },
+    "decision_support": {
+        "name": "Decision Support",
+        "description": "Regulated employee workflow. Heavy auditing, extremely strict risk tolerance. Blocks on any warning or mismatch.",
+        "latency_budget_ms": 8000,
+        "score_block_below": 50,
+        "score_log_below": 80,
+        "correlation_block_flags": {"cost_confidence_mismatch", "latency_pii_correlation", "repeated_compound_escalation"},
+        "correlation_log_flags": set(),
+    }
+}
 
 # --- Correlation engine ---
 COMPOUND_WINDOW_SECONDS = 120

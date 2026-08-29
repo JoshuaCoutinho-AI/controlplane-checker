@@ -5,17 +5,18 @@ All thresholds come from app.config so they are tunable without touching
 this logic.
 """
 
-from app.config import (
-    SCORE_BLOCK_BELOW,
-    SCORE_LOG_BELOW,
-    CORRELATION_BLOCK_FLAGS,
-    CORRELATION_LOG_FLAGS,
-)
+from app.config import USE_CASE_POLICIES
 
 
 def decide(
-    performance: dict, cost: dict, responsibility: dict, correlation: dict
+    performance: dict,
+    cost: dict,
+    responsibility: dict,
+    correlation: dict,
+    use_case: str = "customer_support",
 ) -> tuple[str, str]:
+    policy = USE_CASE_POLICIES.get(use_case, USE_CASE_POLICIES["customer_support"])
+
     scores = {
         "performance": performance["score"],
         "cost": cost["score"],
@@ -27,23 +28,25 @@ def decide(
     if responsibility.get("pii_found"):
         return "block", "responsibility check found PII in the response"
 
-    if compound_flags & CORRELATION_BLOCK_FLAGS:
-        hit = sorted(compound_flags & CORRELATION_BLOCK_FLAGS)[0]
+    block_flags = policy["correlation_block_flags"]
+    if compound_flags & block_flags:
+        hit = sorted(compound_flags & block_flags)[0]
         return "block", f"correlation engine raised a blocking compound flag: {hit}"
 
-    critical = [name for name, val in scores.items() if val < SCORE_BLOCK_BELOW]
+    critical = [name for name, val in scores.items() if val < policy["score_block_below"]]
     if critical:
         return "block", f"{critical[0]} score critically low ({scores[critical[0]]})"
 
-    if compound_flags & CORRELATION_LOG_FLAGS:
-        hit = sorted(compound_flags & CORRELATION_LOG_FLAGS)[0]
+    log_flags = policy["correlation_log_flags"]
+    if compound_flags & log_flags:
+        hit = sorted(compound_flags & log_flags)[0]
         return "log", f"correlation engine raised a compound flag for review: {hit}"
 
-    degraded = [name for name, val in scores.items() if val < SCORE_LOG_BELOW]
+    degraded = [name for name, val in scores.items() if val < policy["score_log_below"]]
     if degraded:
         return (
             "log",
             f"{degraded[0]} score below healthy threshold ({scores[degraded[0]]})",
         )
 
-    return "pass", "all checks within healthy range, no correlation flags"
+    return "pass", f"all checks within healthy range for {policy['name']} policy"

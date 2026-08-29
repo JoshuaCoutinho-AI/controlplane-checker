@@ -10,6 +10,7 @@ export interface ScoredResponse {
   id: string
   session_id: string
   model: string
+  use_case: string
   timestamp: string
   prompt: string
   response: string
@@ -26,4 +27,7 @@ export interface ScoredResponse {
   decision_reason: string
   generated?: boolean
   llm_provider?: string | null
+  override_status: string
+  override_reason?: string | null
+  feedback_text?: string | null
 }

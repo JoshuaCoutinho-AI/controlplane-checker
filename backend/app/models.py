@@ -27,6 +27,7 @@ class ScoredResponse(Base):
     id = Column(String, primary_key=True, default=new_id)
     session_id = Column(String, index=True, default="demo-session")
     model = Column(String, default="default")
+    use_case = Column(String, default="customer_support")
     timestamp = Column(DateTime, default=utcnow)
 
     prompt_excerpt = Column(String)
@@ -41,11 +42,17 @@ class ScoredResponse(Base):
     severity = Column(String, default="pass")  # pass | log | block
     decision_reason = Column(String, default="")
 
+    # Feedback & Overrides
+    override_status = Column(String, default="none")  # none | override_allow | override_block
+    override_reason = Column(String, nullable=True)
+    feedback_text = Column(String, nullable=True)
+
     def to_payload(self) -> dict:
         return {
             "id": self.id,
             "session_id": self.session_id,
             "model": self.model,
+            "use_case": self.use_case,
             "timestamp": (
                 self.timestamp.isoformat()
                 if isinstance(self.timestamp, datetime)
@@ -61,4 +68,7 @@ class ScoredResponse(Base):
             "correlation": self.correlation,
             "severity": self.severity,
             "decision_reason": self.decision_reason,
+            "override_status": self.override_status,
+            "override_reason": self.override_reason,
+            "feedback_text": self.feedback_text,
         }

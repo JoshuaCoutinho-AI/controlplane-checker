@@ -5,7 +5,7 @@ sanity). Deliberately avoids a second model call so it stays fast and
 demo-reliable, per the build plan (Section 3.2).
 """
 
-from app.config import LATENCY_BUDGET_MS, HEDGE_PHRASES
+from app.config import HEDGE_PHRASES
 
 
 def _repetition_ratio(text: str) -> float:
@@ -39,13 +39,13 @@ def _confidence_heuristic(prompt: str, response: str) -> tuple[float, list[str]]
     return max(0.0, confidence), flags
 
 
-def run(prompt: str, response: str, latency_ms: float) -> dict:
+def run(prompt: str, response: str, latency_ms: float, latency_budget_ms: float = 2500) -> dict:
     confidence, flags = _confidence_heuristic(prompt, response)
 
-    if latency_ms > LATENCY_BUDGET_MS:
+    if latency_ms > latency_budget_ms:
         flags.append("latency_over_budget")
 
-    latency_score = max(0, 100 - int(max(0, latency_ms - LATENCY_BUDGET_MS) / 20))
+    latency_score = max(0, 100 - int(max(0, latency_ms - latency_budget_ms) / 20))
     confidence_score = int(confidence * 100)
     score = round(0.5 * latency_score + 0.5 * confidence_score)
 

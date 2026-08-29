@@ -36,7 +36,15 @@ export function useLiveFeed(maxRecords = 100) {
       ws.onmessage = (event) => {
         try {
           const record: ScoredResponse = JSON.parse(event.data)
-          setRecords((prev) => [record, ...prev].slice(0, maxRecords))
+          setRecords((prev) => {
+            const index = prev.findIndex((r) => r.id === record.id)
+            if (index !== -1) {
+              const updated = [...prev]
+              updated[index] = record
+              return updated
+            }
+            return [record, ...prev].slice(0, maxRecords)
+          })
         } catch {
           /* ignore malformed frames */
         }

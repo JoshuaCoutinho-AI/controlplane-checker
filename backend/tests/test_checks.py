@@ -62,3 +62,30 @@ def test_router_passes_clean_response():
     corr = {"compound_flags": []}
     severity, reason = router.decide(perf, cost_result, resp, corr)
     assert severity == "pass"
+
+
+def test_performance_dynamic_budget():
+    # Latency 2000ms: over budget of 1500 (customer_support), but within budget of 4000 (internal_knowledge)
+    res_strict = performance.run("prompt", "response", latency_ms=2000, latency_budget_ms=1500)
+    assert "latency_over_budget" in res_strict["flags"]
+    assert res_strict["score"] < 100
+
+    res_relaxed = performance.run("prompt", "response", latency_ms=2000, latency_budget_ms=4000)
+    assert "latency_over_budget" not in res_relaxed["flags"]
+    assert res_relaxed["score"] == 100
+
+
+def test_router_use_case_thresholds():
+    # Performance score 35. 
+    # Under customer_support (block_below=40), this should block.
+    # Under internal_knowledge (block_below=25, log_below=60), this should log.
+    perf = {"score": 35}
+    cost_result = {"score": 90}
+    resp = {"score": 95, "pii_found": False}
+    corr = {"compound_flags": []}
+
+    sev_strict, reason_strict = router.decide(perf, cost_result, resp, corr, use_case="customer_support")
+    assert sev_strict == "block"
+
+    sev_relaxed, reason_relaxed = router.decide(perf, cost_result, resp, corr, use_case="internal_knowledge")
+    assert sev_relaxed == "log"

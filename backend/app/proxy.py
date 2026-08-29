@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import desc
 
 from app import correlation, router
+from app.config import USE_CASE_POLICIES
 from app.checks import cost as cost_check
 from app.checks import performance as performance_check
 from app.checks import responsibility as responsibility_check
@@ -34,12 +35,16 @@ async def score_and_route(
     prompt: str,
     response: str,
     model: str = "default",
+    use_case: str = "customer_support",
     session_id: str = "demo-session",
     measured_latency_ms: float | None = None,
 ) -> ScoredResponse:
     start = time.perf_counter()
 
     recent_costs = _recent_costs(db, model, limit=20)
+    
+    policy = USE_CASE_POLICIES.get(use_case, USE_CASE_POLICIES["customer_support"])
+    latency_budget = policy["latency_budget_ms"]
 
     # run the three checks concurrently; none of them depend on each other
     perf_task = asyncio.to_thread(
@@ -51,6 +56,7 @@ async def score_and_route(
             if measured_latency_ms is not None
             else (time.perf_counter() - start) * 1000
         ),
+        latency_budget,
     )
     cost_task = asyncio.to_thread(cost_check.run, prompt, response, model, recent_costs)
     resp_task = asyncio.to_thread(responsibility_check.run, response)
@@ -63,12 +69,13 @@ async def score_and_route(
         session_id, perf_result, cost_result, resp_result
     )
     severity, reason = router.decide(
-        perf_result, cost_result, resp_result, correlation_result
+        perf_result, cost_result, resp_result, correlation_result, use_case
     )
 
     record = ScoredResponse(
         session_id=session_id,
         model=model,
+        use_case=use_case,
         prompt_excerpt=prompt,
         # never store raw response text if PII was found — store the
         # redacted (but full-length) text the responsibility check
