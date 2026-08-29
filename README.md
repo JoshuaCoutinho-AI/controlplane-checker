@@ -190,4 +190,3 @@ the three check outputs, kept deliberately simple so it ships reliably under tim
 Auto-remediation of flagged responses, multi-tenant auth, and production-grade horizontal scaling are
 documented as future work, not built — see the build plan PDF for details.
 
-**Deadline: 30 Aug 2026, 11:59 PM IST.**
