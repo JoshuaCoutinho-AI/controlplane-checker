@@ -9,9 +9,7 @@ Covers:
 from fastapi.testclient import TestClient
 
 from app import router
-from app.config import USE_CASE_POLICIES
 from app.main import app
-from app.db import init_db, engine
 from app.models import Base
 
 
@@ -19,9 +17,17 @@ from app.models import Base
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _clean_inputs(perf_score=90, cost_score=90, resp_score=95, pii=False,
-                  resp_flags=None, bias_score=95, hallucination_score=95,
-                  compound_flags=None):
+
+def _clean_inputs(
+    perf_score=90,
+    cost_score=90,
+    resp_score=95,
+    pii=False,
+    resp_flags=None,
+    bias_score=95,
+    hallucination_score=95,
+    compound_flags=None,
+):
     """Build the six dicts router.decide expects, with overridable scores."""
     return (
         {"score": perf_score},
@@ -45,31 +51,40 @@ def _clean_inputs(perf_score=90, cost_score=90, resp_score=95, pii=False,
 #   internal_knowledge: block < 25, log < 60
 #   decision_support:  block < 50, log < 80
 
+
 class TestCustomerSupportPolicy:
     USE_CASE = "customer_support"
 
     def test_blocks_below_threshold(self):
         """Score 39 is below block_below=40 → must block."""
         perf, cost, resp, bias, hall, corr = _clean_inputs(perf_score=39)
-        severity, _ = router.decide(perf, cost, resp, bias, hall, corr, use_case=self.USE_CASE)
+        severity, _ = router.decide(
+            perf, cost, resp, bias, hall, corr, use_case=self.USE_CASE
+        )
         assert severity == "block"
 
     def test_logs_between_block_and_log(self):
         """Score 40 passes block (≥40) but is below log_below=70 → must log."""
         perf, cost, resp, bias, hall, corr = _clean_inputs(perf_score=40)
-        severity, _ = router.decide(perf, cost, resp, bias, hall, corr, use_case=self.USE_CASE)
+        severity, _ = router.decide(
+            perf, cost, resp, bias, hall, corr, use_case=self.USE_CASE
+        )
         assert severity == "log"
 
     def test_passes_above_log_threshold(self):
         """Score 70 is at log_below=70 boundary → ≥70 should pass."""
         perf, cost, resp, bias, hall, corr = _clean_inputs(perf_score=70)
-        severity, _ = router.decide(perf, cost, resp, bias, hall, corr, use_case=self.USE_CASE)
+        severity, _ = router.decide(
+            perf, cost, resp, bias, hall, corr, use_case=self.USE_CASE
+        )
         assert severity == "pass"
 
     def test_block_on_any_single_check_below_threshold(self):
         """If only cost is critically low, router should still block."""
         perf, cost, resp, bias, hall, corr = _clean_inputs(cost_score=30)
-        severity, _ = router.decide(perf, cost, resp, bias, hall, corr, use_case=self.USE_CASE)
+        severity, _ = router.decide(
+            perf, cost, resp, bias, hall, corr, use_case=self.USE_CASE
+        )
         assert severity == "block"
 
 
@@ -79,19 +94,25 @@ class TestInternalKnowledgePolicy:
     def test_blocks_below_threshold(self):
         """Score 24 is below block_below=25 → must block."""
         perf, cost, resp, bias, hall, corr = _clean_inputs(perf_score=24)
-        severity, _ = router.decide(perf, cost, resp, bias, hall, corr, use_case=self.USE_CASE)
+        severity, _ = router.decide(
+            perf, cost, resp, bias, hall, corr, use_case=self.USE_CASE
+        )
         assert severity == "block"
 
     def test_logs_between_block_and_log(self):
         """Score 25 passes block (≥25) but is below log_below=60 → must log."""
         perf, cost, resp, bias, hall, corr = _clean_inputs(perf_score=25)
-        severity, _ = router.decide(perf, cost, resp, bias, hall, corr, use_case=self.USE_CASE)
+        severity, _ = router.decide(
+            perf, cost, resp, bias, hall, corr, use_case=self.USE_CASE
+        )
         assert severity == "log"
 
     def test_passes_above_log_threshold(self):
         """Score 60 is at log_below=60 boundary → ≥60 should pass."""
         perf, cost, resp, bias, hall, corr = _clean_inputs(perf_score=60)
-        severity, _ = router.decide(perf, cost, resp, bias, hall, corr, use_case=self.USE_CASE)
+        severity, _ = router.decide(
+            perf, cost, resp, bias, hall, corr, use_case=self.USE_CASE
+        )
         assert severity == "pass"
 
     def test_score_35_logs_not_blocks(self):
@@ -99,7 +120,9 @@ class TestInternalKnowledgePolicy:
         This is the inverse of the existing test: confirm relaxed policy
         doesn't block what customer_support would."""
         perf, cost, resp, bias, hall, corr = _clean_inputs(perf_score=35)
-        severity, _ = router.decide(perf, cost, resp, bias, hall, corr, use_case=self.USE_CASE)
+        severity, _ = router.decide(
+            perf, cost, resp, bias, hall, corr, use_case=self.USE_CASE
+        )
         assert severity == "log"
 
 
@@ -109,19 +132,25 @@ class TestDecisionSupportPolicy:
     def test_blocks_below_threshold(self):
         """Score 49 is below block_below=50 → must block."""
         perf, cost, resp, bias, hall, corr = _clean_inputs(perf_score=49)
-        severity, _ = router.decide(perf, cost, resp, bias, hall, corr, use_case=self.USE_CASE)
+        severity, _ = router.decide(
+            perf, cost, resp, bias, hall, corr, use_case=self.USE_CASE
+        )
         assert severity == "block"
 
     def test_logs_between_block_and_log(self):
         """Score 50 passes block (≥50) but is below log_below=80 → must log."""
         perf, cost, resp, bias, hall, corr = _clean_inputs(perf_score=50)
-        severity, _ = router.decide(perf, cost, resp, bias, hall, corr, use_case=self.USE_CASE)
+        severity, _ = router.decide(
+            perf, cost, resp, bias, hall, corr, use_case=self.USE_CASE
+        )
         assert severity == "log"
 
     def test_passes_above_log_threshold(self):
         """Score 80 is at log_below=80 boundary → ≥80 should pass."""
         perf, cost, resp, bias, hall, corr = _clean_inputs(perf_score=80)
-        severity, _ = router.decide(perf, cost, resp, bias, hall, corr, use_case=self.USE_CASE)
+        severity, _ = router.decide(
+            perf, cost, resp, bias, hall, corr, use_case=self.USE_CASE
+        )
         assert severity == "pass"
 
     def test_blocks_on_cost_confidence_mismatch_flag(self):
@@ -130,14 +159,18 @@ class TestDecisionSupportPolicy:
         flag integration actually blocks."""
         perf, cost, resp, bias, hall, corr = _clean_inputs()
         corr["compound_flags"] = ["cost_confidence_mismatch"]
-        severity, _ = router.decide(perf, cost, resp, bias, hall, corr, use_case=self.USE_CASE)
+        severity, _ = router.decide(
+            perf, cost, resp, bias, hall, corr, use_case=self.USE_CASE
+        )
         assert severity == "block"
 
     def test_customer_support_only_logs_cost_confidence_mismatch(self):
         """Same flag under customer_support should only log, not block."""
         perf, cost, resp, bias, hall, corr = _clean_inputs()
         corr["compound_flags"] = ["cost_confidence_mismatch"]
-        severity, _ = router.decide(perf, cost, resp, bias, hall, corr, use_case="customer_support")
+        severity, _ = router.decide(
+            perf, cost, resp, bias, hall, corr, use_case="customer_support"
+        )
         assert severity == "log"
 
 
@@ -147,17 +180,23 @@ class TestPolicyIsolatedPIIEdits:
 
     def test_isolated_pii_edits_customer_support(self):
         perf, cost, resp, bias, hall, corr = _clean_inputs(pii=True, resp_score=40)
-        severity, _ = router.decide(perf, cost, resp, bias, hall, corr, use_case="customer_support")
+        severity, _ = router.decide(
+            perf, cost, resp, bias, hall, corr, use_case="customer_support"
+        )
         assert severity == "edit"
 
     def test_isolated_pii_edits_internal_knowledge(self):
         perf, cost, resp, bias, hall, corr = _clean_inputs(pii=True, resp_score=40)
-        severity, _ = router.decide(perf, cost, resp, bias, hall, corr, use_case="internal_knowledge")
+        severity, _ = router.decide(
+            perf, cost, resp, bias, hall, corr, use_case="internal_knowledge"
+        )
         assert severity == "edit"
 
     def test_isolated_pii_edits_decision_support(self):
         perf, cost, resp, bias, hall, corr = _clean_inputs(pii=True, resp_score=40)
-        severity, _ = router.decide(perf, cost, resp, bias, hall, corr, use_case="decision_support")
+        severity, _ = router.decide(
+            perf, cost, resp, bias, hall, corr, use_case="decision_support"
+        )
         assert severity == "edit"
 
     def test_pii_with_toxicity_still_blocks(self):
@@ -165,7 +204,9 @@ class TestPolicyIsolatedPIIEdits:
         perf, cost, resp, bias, hall, corr = _clean_inputs(
             pii=True, resp_score=40, resp_flags=["toxicity_keyword"]
         )
-        severity, _ = router.decide(perf, cost, resp, bias, hall, corr, use_case="customer_support")
+        severity, _ = router.decide(
+            perf, cost, resp, bias, hall, corr, use_case="customer_support"
+        )
         assert severity == "block"
 
 
@@ -177,7 +218,9 @@ class TestUnknownUseCaseFallback:
         # pass under internal_knowledge (block_below=25). If fallback works,
         # we get a block.
         perf, cost, resp, bias, hall, corr = _clean_inputs(perf_score=39)
-        severity, _ = router.decide(perf, cost, resp, bias, hall, corr, use_case="nonexistent_policy")
+        severity, _ = router.decide(
+            perf, cost, resp, bias, hall, corr, use_case="nonexistent_policy"
+        )
         assert severity == "block"
 
 
@@ -227,9 +270,10 @@ class TestBiasHallucinationScoreRouting:
 # ---------------------------------------------------------------------------
 # Uses TestClient against the actual FastAPI app with an in-memory SQLite DB.
 
+
 def _get_test_client():
     """Create a fresh in-memory SQLite DB and return a TestClient.
-    
+
     Uses StaticPool so every connection shares the same in-memory DB —
     without this, SQLite creates a separate empty DB per connection and
     async handlers (which run in worker threads) would hit a DB with
@@ -262,14 +306,17 @@ def _get_test_client():
 
 def _create_scored_record(client) -> str:
     """POST /score with a pre-supplied response (no LLM call) and return the id."""
-    resp = client.post("/score", json={
-        "prompt": "What is 2+2?",
-        "response": "It is 4.",
-        "model": "default",
-        "use_case": "customer_support",
-        "session_id": "test-session",
-        "latency_ms": 100.0,
-    })
+    resp = client.post(
+        "/score",
+        json={
+            "prompt": "What is 2+2?",
+            "response": "It is 4.",
+            "model": "default",
+            "use_case": "customer_support",
+            "session_id": "test-session",
+            "latency_ms": 100.0,
+        },
+    )
     assert resp.status_code == 200, f"Setup failed: {resp.text}"
     return resp.json()["id"]
 
@@ -284,10 +331,13 @@ class TestOverrideEndpoint:
 
     def test_override_allow_persists(self):
         score_id = _create_scored_record(self.client)
-        resp = self.client.post(f"/score/{score_id}/override", json={
-            "status": "override_allow",
-            "reason": "Manager approved",
-        })
+        resp = self.client.post(
+            f"/score/{score_id}/override",
+            json={
+                "status": "override_allow",
+                "reason": "Manager approved",
+            },
+        )
         assert resp.status_code == 200
         data = resp.json()
         assert data["override_status"] == "override_allow"
@@ -296,10 +346,13 @@ class TestOverrideEndpoint:
 
     def test_override_block_persists(self):
         score_id = _create_scored_record(self.client)
-        resp = self.client.post(f"/score/{score_id}/override", json={
-            "status": "override_block",
-            "reason": "Compliance flagged",
-        })
+        resp = self.client.post(
+            f"/score/{score_id}/override",
+            json={
+                "status": "override_block",
+                "reason": "Compliance flagged",
+            },
+        )
         assert resp.status_code == 200
         data = resp.json()
         assert data["override_status"] == "override_block"
@@ -308,36 +361,49 @@ class TestOverrideEndpoint:
     def test_override_none_resets(self):
         score_id = _create_scored_record(self.client)
         # First override to block
-        self.client.post(f"/score/{score_id}/override", json={
-            "status": "override_block",
-            "reason": "temp block",
-        })
+        self.client.post(
+            f"/score/{score_id}/override",
+            json={
+                "status": "override_block",
+                "reason": "temp block",
+            },
+        )
         # Then reset
-        resp = self.client.post(f"/score/{score_id}/override", json={
-            "status": "none",
-        })
+        resp = self.client.post(
+            f"/score/{score_id}/override",
+            json={
+                "status": "none",
+            },
+        )
         assert resp.status_code == 200
         data = resp.json()
         assert data["override_status"] == "none"
         assert data["override_reason"] is None
 
     def test_override_nonexistent_record_404(self):
-        resp = self.client.post("/score/nonexistent-id/override", json={
-            "status": "override_allow",
-        })
+        resp = self.client.post(
+            "/score/nonexistent-id/override",
+            json={
+                "status": "override_allow",
+            },
+        )
         assert resp.status_code == 404
 
     def test_override_invalid_status_400(self):
         score_id = _create_scored_record(self.client)
-        resp = self.client.post(f"/score/{score_id}/override", json={
-            "status": "invalid_status",
-        })
+        resp = self.client.post(
+            f"/score/{score_id}/override",
+            json={
+                "status": "invalid_status",
+            },
+        )
         assert resp.status_code == 400
 
 
 # ---------------------------------------------------------------------------
 # 3. MALFORMED-INPUT HANDLING
 # ---------------------------------------------------------------------------
+
 
 class TestMalformedInput:
 
@@ -349,9 +415,12 @@ class TestMalformedInput:
 
     def test_missing_prompt_field_422(self):
         """POST /score without 'prompt' → Pydantic validation error (422)."""
-        resp = self.client.post("/score", json={
-            "response": "some response",
-        })
+        resp = self.client.post(
+            "/score",
+            json={
+                "response": "some response",
+            },
+        )
         assert resp.status_code == 422
 
     def test_empty_body_422(self):
@@ -362,12 +431,15 @@ class TestMalformedInput:
     def test_score_with_presupplied_response_succeeds(self):
         """Baseline: valid request with pre-supplied response should 200
         (no LLM call needed, so no network dependency)."""
-        resp = self.client.post("/score", json={
-            "prompt": "Hello",
-            "response": "Hi there!",
-            "model": "default",
-            "latency_ms": 50.0,
-        })
+        resp = self.client.post(
+            "/score",
+            json={
+                "prompt": "Hello",
+                "response": "Hi there!",
+                "model": "default",
+                "latency_ms": 50.0,
+            },
+        )
         assert resp.status_code == 200
         data = resp.json()
         assert data["severity"] in ("pass", "edit", "log", "block")
@@ -375,7 +447,10 @@ class TestMalformedInput:
     def test_override_missing_status_field_422(self):
         """POST /override without 'status' field → 422."""
         score_id = _create_scored_record(self.client)
-        resp = self.client.post(f"/score/{score_id}/override", json={
-            "reason": "no status provided",
-        })
+        resp = self.client.post(
+            f"/score/{score_id}/override",
+            json={
+                "reason": "no status provided",
+            },
+        )
         assert resp.status_code == 422
