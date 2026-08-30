@@ -39,7 +39,9 @@ def _confidence_heuristic(prompt: str, response: str) -> tuple[float, list[str]]
     return max(0.0, confidence), flags
 
 
-def run(prompt: str, response: str, latency_ms: float, latency_budget_ms: float = 2500) -> dict:
+def run(
+    prompt: str, response: str, latency_ms: float, latency_budget_ms: float = 2500
+) -> dict:
     confidence, flags = _confidence_heuristic(prompt, response)
 
     if latency_ms > latency_budget_ms:

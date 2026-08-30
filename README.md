@@ -4,7 +4,8 @@
 
 AI deployments fail silently — wrong, expensive, or unsafe — and teams find out only after the
 damage is done. ControlPlane Checker is a model-agnostic proxy that scores every LLM response live
-across three dimensions (**performance**, **cost**, **responsibility**), correlates those signals to
+across five explicit checks (**performance**, **cost**, **responsibility**, **bias**, and
+**hallucination**), correlates those signals to
 catch compound failures single-metric tools miss, and routes each response by severity
 (**pass / log / block**) before it reaches the end user — with a live dashboard showing it all happen.
 
@@ -36,9 +37,9 @@ python demo/seed_transactions.py
 ```
 
 This sends clean responses (→ pass), a hedging/low-confidence response (→ log), a response containing
-PII (→ block, and redacted before storage), an expensive+low-confidence response (→ triggers the
-`cost_confidence_mismatch` correlation flag), and a restricted-category mention — end to end, in about
-10 seconds.
+PII (→ block, and redacted before storage), a fabricated named-person detail plus PII (→ triggers the
+hallucination/privacy compound rule), an expensive+low-confidence response (→ triggers the
+`cost_confidence_mismatch` rule), and a restricted-category mention — end to end, in about 10 seconds.
 
 **Option B — type your own.** The dashboard (`http://localhost:5173`) has a "Score a response" form
 above the live feed (`frontend/src/components/ScoreForm.tsx`). Type a prompt, pick a model, and submit —
@@ -67,7 +68,7 @@ providers configured at once in `.env` and flip between them live from the dropd
 
 **To use Ollama:**
 ```bash
-# install from https://ollama.com, then:
+# Start Ollama, then download the model once:
 ollama serve
 ollama pull llama3.2
 ```
@@ -111,7 +112,9 @@ controlplane-checker/
 │   └── checks/
 │       ├── performance.py  latency + deterministic confidence heuristic
 │       ├── cost.py         token/cost estimate + rolling-average spike detection
-│       └── responsibility.py  PII detection + redaction, toxicity/keyword screen
+│       ├── responsibility.py  PII redaction + structural toxicity pre-filter
+│       ├── bias.py         protected-group generalisation heuristic
+│       └── hallucination.py prompt/context claim heuristic + optional LLM judge
 ├── frontend/src/
 │   ├── App.tsx, components/Dashboard.tsx, ResponseCard.tsx, SeverityBadge.tsx
 │   └── hooks/useLiveFeed.ts   WebSocket client with reconnect backoff + REST history bootstrap
@@ -120,8 +123,8 @@ controlplane-checker/
 └── .github/workflows/ci.yml
 ```
 
-**Request lifecycle:** client → `POST /score` → three checks run concurrently → correlation engine
-inspects the three results together → severity router decides pass/log/block → record persisted →
+**Request lifecycle:** client → `POST /score` → five checks run concurrently → correlation engine
+inspects the five results together → severity router decides pass/log/block → record persisted →
 broadcast to all connected dashboards over WebSocket.
 
 **WebSocket/REST payload schema** (both use the same shape):
@@ -135,10 +138,12 @@ broadcast to all connected dashboards over WebSocket.
   "checks": {
     "performance": {"score": 0-100, "latency_ms": 0, "confidence": 0-1, "flags": []},
     "cost": {"score": 0-100, "est_tokens": 0, "est_cost_usd": 0.0, "flags": []},
-    "responsibility": {"score": 0-100, "pii_found": false, "toxicity": 0-1, "flags": []}
+    "responsibility": {"score": 0-100, "pii_found": false, "toxicity": 0-1, "flags": []},
+    "bias": {"score": 0-100, "matched_terms": [], "flags": []},
+    "hallucination": {"score": 0-100, "claims_not_grounded_in_prompt": [], "verified_fabricated_claims": [], "judge_used": false, "flags": []}
   },
   "correlation": {"compound_flags": [], "correlation_score": 0-100},
-  "severity": "pass | log | block",
+  "severity": "pass | edit | log | block",
   "decision_reason": "string",
   "generated": false,
   "llm_provider": "ollama | gemini | null"
@@ -154,14 +159,36 @@ broadcast to all connected dashboards over WebSocket.
 |---|---|---|
 | `cost_confidence_mismatch` | cost check flags a spike **and** performance confidence < 0.5 on the same response | logged for review |
 | `latency_pii_correlation` | latency over budget **and** PII found on the same response | blocked |
-| `repeated_compound_escalation` | 2+ compound flags on the same session within 120s | blocked |
+| `hallucination_pii_person_correlation` | a judge-verified fabricated person claim **and** PII found on the same response | blocked for customer support and decision support; logged for internal knowledge |
+| `repeated_compound_escalation` | 2+ compound-flagged records for the same session within 120s, read from SQLite | blocked |
 
 Extend `backend/app/correlation.py`'s `RULES` list to add more — each rule is a small function over
-the three check outputs, kept deliberately simple so it ships reliably under time pressure.
+the five check outputs, kept deliberately simple so it ships reliably under time pressure.
 
 ## Design assumptions
 
 **Performance scoring blends latency and response-quality equally.** The performance check's overall score is always `0.5 × latency_score + 0.5 × confidence_heuristic_score`, so a fast-but-generic response will not reach a perfect 100 — this is intentional. The confidence heuristic penalises hedging language, high word-repetition, and suspiciously short responses without requiring a second model call.
+
+**Bias, toxicity, and hallucination checks are bounded signals, not proof.** Bias and toxicity use reviewable structural patterns; they do not claim full semantic coverage. Hallucination regexes only surface informational claims-not-grounded-in-the-prompt candidates. A configured LLM judge is required to mark a claim fabricated; unavailable judges fail open with a neutral score.
+
+**Cost is an estimate.** The dependency-free character-count tokenizer is commonly about ±15–20% inaccurate for English text and can be less accurate for code or non-English text; it is used for relative anomaly detection, not billing.
+
+**Feedback is captured, not auto-trained.** `POST /feedback/{response_id}` records `correct`, `false_positive`, or `false_negative` with an optional note in SQLite and broadcasts the updated record. Future threshold recalibration is intentionally out of scope for this prototype.
+
+**Geography is illustrative, not a compliance engine.** Requests select US, EU, or APAC policy context; the EU example treats IP addresses as additional personal data. Production use would require legal review for every jurisdiction, data-residency controls, and maintained regulatory mappings.
+
+## API monitoring surface
+
+- `GET /metrics` reports scored-response count, feedback coverage, false-positive and false-negative rates, plus feedback-grounded error rates by original severity. This answers the brief's Metrics & monitoring requirement using persisted human labels; rates are null when a tier has no feedback.
+
+## Severity tiers
+
+| Outcome | Meaning |
+|---|---|
+| `pass` | Allow the response. |
+| `edit` | Release the existing redacted response when PII is isolated and cleanly redactable. |
+| `log` | Flag for review while allowing the response. |
+| `block` | Withhold severe, compound, toxic, or restricted responses. |
 
 ## Development standards
 
@@ -180,6 +207,8 @@ the three check outputs, kept deliberately simple so it ships reliably under tim
 - Demo mode uses mocked/seeded responses — no real user data or API keys required.
 - The responsibility check redacts PII **before** anything is persisted — raw PII is never written to
   the database, even in the tool's own demo store.
+- `docs/Build_Plan.pdf` has no editable source in this repository; its referenced sections predate the
+  five-check implementation and should be treated as historical planning material until its source is supplied.
 
 ## Team Members
 
@@ -191,4 +220,9 @@ the three check outputs, kept deliberately simple so it ships reliably under tim
 
 Auto-remediation of flagged responses, multi-tenant auth, and production-grade horizontal scaling are
 documented as future work, not built — see the build plan PDF for details.
+
+True multi-turn grounding and agent-action risk modeling are deliberately out of scope. Today, the
+system only escalates repeated compound flags within a session time window. A production multi-turn
+checker would retain prior-turn claims as grounding context and use a distinct risk model for agent
+actions (tools, writes, transactions) rather than treating them as ordinary generated text.
 

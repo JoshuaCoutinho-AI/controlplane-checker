@@ -8,8 +8,9 @@ from app.config import MODEL_COST_PER_1K_TOKENS, COST_SPIKE_MULTIPLIER
 
 def estimate_tokens(text: str) -> int:
     """Cheap heuristic tokenizer: ~4 chars per token (English-text average).
-    Swap for tiktoken if/when available; kept dependency-free here so the
-    check never blocks on a missing package during the demo."""
+    This is commonly about +/-15-20% inaccurate for English and worse for
+    code or non-English text. Kept dependency-free so it never blocks demo
+    scoring on a missing optional tokenizer."""
     return max(1, len(text) // 4)
 
 

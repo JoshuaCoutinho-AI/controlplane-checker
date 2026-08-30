@@ -1,6 +1,6 @@
 """
 Severity router: maps check + correlation output to a single decision
-(pass / log / block), per the truth table in the build plan (Section 3.3).
+(pass / edit / log / block), per the truth table in the build plan (Section 3.3).
 All thresholds come from app.config so they are tunable without touching
 this logic.
 """
@@ -12,6 +12,8 @@ def decide(
     performance: dict,
     cost: dict,
     responsibility: dict,
+    bias: dict,
+    hallucination: dict,
     correlation: dict,
     use_case: str = "customer_support",
 ) -> tuple[str, str]:
@@ -21,19 +23,34 @@ def decide(
         "performance": performance["score"],
         "cost": cost["score"],
         "responsibility": responsibility["score"],
+        "bias": bias["score"],
+        "hallucination": hallucination["score"],
     }
     compound_flags = set(correlation.get("compound_flags", []))
 
-    # Hard block: PII found is always a block regardless of score math.
+    # Isolated, redactable PII is edited; PII combined with a compound or
+    # restricted/toxic signal remains a block for review rather than release.
     if responsibility.get("pii_found"):
-        return "block", "responsibility check found PII in the response"
+        severe_pii_context = (
+            any(
+                flag.startswith("restricted_category_")
+                for flag in responsibility["flags"]
+            )
+            or "toxicity_keyword" in responsibility["flags"]
+            or bool(compound_flags & policy["correlation_block_flags"])
+        )
+        if not severe_pii_context:
+            return "edit", "isolated PII was redacted before release"
+        return "block", "responsibility check found PII in a severe context"
 
     block_flags = policy["correlation_block_flags"]
     if compound_flags & block_flags:
         hit = sorted(compound_flags & block_flags)[0]
         return "block", f"correlation engine raised a blocking compound flag: {hit}"
 
-    critical = [name for name, val in scores.items() if val < policy["score_block_below"]]
+    critical = [
+        name for name, val in scores.items() if val < policy["score_block_below"]
+    ]
     if critical:
         return "block", f"{critical[0]} score critically low ({scores[critical[0]]})"
 

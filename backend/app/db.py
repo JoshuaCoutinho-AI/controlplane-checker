@@ -6,7 +6,7 @@ SQLAlchemy abstracts the dialect.
 """
 
 import os
-from sqlalchemy import create_engine
+from sqlalchemy import inspect, text, create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.models import Base
@@ -20,6 +20,22 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 def init_db():
     Base.metadata.create_all(bind=engine)
+    # SQLite's create_all does not alter existing demo databases. These two
+    # JSON fields were added after the first public prototype schema.
+    inspector = inspect(engine)
+    columns = {column["name"] for column in inspector.get_columns("scored_responses")}
+    with engine.begin() as connection:
+        for column in (
+            "bias",
+            "hallucination",
+            "geography",
+            "original_severity",
+            "original_decision_reason",
+        ):
+            if column not in columns:
+                connection.execute(
+                    text(f"ALTER TABLE scored_responses ADD COLUMN {column} JSON")
+                )
 
 
 def get_session():

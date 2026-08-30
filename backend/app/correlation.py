@@ -7,15 +7,11 @@ framework) so it ships reliably under time pressure; extend the
 RULES list rather than rewriting the evaluator.
 """
 
-from collections import defaultdict
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
+
+from sqlalchemy.orm import Session
 
 from app.config import COMPOUND_WINDOW_SECONDS, COMPOUND_REPEAT_THRESHOLD
-
-# in-memory recent compound-flag history per session, for the
-# "repeated compound flags" escalation rule. Fine for a single-process
-# demo; would move to the DB/Redis for multi-instance deployment.
-_recent_compound_flags: dict[str, list[float]] = defaultdict(list)
 
 
 def _rule_cost_confidence_mismatch(cost: dict, performance: dict) -> bool:
@@ -31,6 +27,12 @@ def _rule_latency_pii(performance: dict, responsibility: dict) -> bool:
     )
 
 
+def _rule_hallucination_pii_person(hallucination: dict, responsibility: dict) -> bool:
+    return "judge_verified_fabricated_person_claim" in hallucination.get(
+        "flags", []
+    ) and responsibility.get("pii_found", False)
+
+
 RULES = [
     (
         "cost_confidence_mismatch",
@@ -38,14 +40,42 @@ RULES = [
         ("cost", "performance"),
     ),
     ("latency_pii_correlation", _rule_latency_pii, ("performance", "responsibility")),
+    (
+        "hallucination_pii_person_correlation",
+        _rule_hallucination_pii_person,
+        ("hallucination", "responsibility"),
+    ),
 ]
 
 
-def run(session_id: str, performance: dict, cost: dict, responsibility: dict) -> dict:
+def _recent_compound_count(db: Session, session_id: str) -> int:
+    from app.models import ScoredResponse
+
+    cutoff = datetime.now(timezone.utc) - timedelta(seconds=COMPOUND_WINDOW_SECONDS)
+    rows = (
+        db.query(ScoredResponse)
+        .filter(ScoredResponse.session_id == session_id)
+        .filter(ScoredResponse.timestamp >= cutoff)
+        .all()
+    )
+    return sum(bool((row.correlation or {}).get("compound_flags")) for row in rows)
+
+
+def run(
+    db: Session,
+    session_id: str,
+    performance: dict,
+    cost: dict,
+    responsibility: dict,
+    bias: dict,
+    hallucination: dict,
+) -> dict:
     context = {
         "performance": performance,
         "cost": cost,
         "responsibility": responsibility,
+        "bias": bias,
+        "hallucination": hallucination,
     }
     compound_flags = []
 
@@ -54,15 +84,8 @@ def run(session_id: str, performance: dict, cost: dict, responsibility: dict) ->
         if rule_fn(*args):
             compound_flags.append(flag_name)
 
-    now = datetime.now(timezone.utc).timestamp()
     if compound_flags:
-        history = _recent_compound_flags[session_id]
-        history.append(now)
-        # prune anything outside the window
-        _recent_compound_flags[session_id] = [
-            t for t in history if now - t <= COMPOUND_WINDOW_SECONDS
-        ]
-        if len(_recent_compound_flags[session_id]) >= COMPOUND_REPEAT_THRESHOLD:
+        if _recent_compound_count(db, session_id) + 1 >= COMPOUND_REPEAT_THRESHOLD:
             compound_flags.append("repeated_compound_escalation")
 
     # correlation_score: 100 if clean, degrading with each compound flag

@@ -1,72 +1,75 @@
-import { useEffect, useState } from 'react'
-import { ArrowUp, Loader2, SlidersHorizontal } from 'lucide-react'
+import { useEffect, useState } from "react";
+import { ArrowUp, Loader2, SlidersHorizontal } from "lucide-react";
 
-const API_BASE = '/api'
+const API_BASE = "/api";
 
-const PROVIDERS = ['ollama', 'gemini'] as const
-type Provider = (typeof PROVIDERS)[number]
+const PROVIDERS = ["ollama", "gemini"] as const;
+type Provider = (typeof PROVIDERS)[number];
 
 interface Props {
-  useCase: string
-  onScored?: () => void
+  useCase: string;
+  onScored?: () => void;
 }
 
 export default function ScoreForm({ useCase, onScored }: Props) {
-  const [prompt, setPrompt] = useState('')
-  const [response, setResponse] = useState('')
-  const [model, setModel] = useState<Provider>(PROVIDERS[0])
-  const [sessionId, setSessionId] = useState('demo-session')
-  const [showAdvanced, setShowAdvanced] = useState(false)
-  const [submitting, setSubmitting] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [prompt, setPrompt] = useState("");
+  const [response, setResponse] = useState("");
+  const [model, setModel] = useState<Provider>(PROVIDERS[0]);
+  const [sessionId, setSessionId] = useState("demo-session");
+  const [geography, setGeography] = useState("US");
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     fetch(`${API_BASE}/llm/status`)
       .then((r) => r.json())
       .then((data) => {
-        if (PROVIDERS.includes(data.default_provider)) setModel(data.default_provider)
+        if (PROVIDERS.includes(data.default_provider))
+          setModel(data.default_provider);
       })
-      .catch(() => {})
-  }, [])
+      .catch(() => {});
+  }, []);
 
   async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    if (!prompt.trim() || submitting) return
-    setSubmitting(true)
-    setError(null)
+    e.preventDefault();
+    if (!prompt.trim() || submitting) return;
+    setSubmitting(true);
+    setError(null);
     try {
       const res = await fetch(`${API_BASE}/score`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           prompt,
-          response: response.trim() === '' ? null : response,
+          response: response.trim() === "" ? null : response,
           model,
           use_case: useCase,
-          session_id: sessionId || 'demo-session',
+          geography,
+          session_id: sessionId || "demo-session",
         }),
-      })
+      });
       if (!res.ok) {
-        const body = await res.json().catch(() => null)
-        throw new Error(body?.detail || `Server returned ${res.status}`)
+        const body = await res.json().catch(() => null);
+        throw new Error(body?.detail || `Server returned ${res.status}`);
       }
-      setPrompt('')
-      setResponse('')
-      onScored?.()
+      setPrompt("");
+      setResponse("");
+      onScored?.();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to submit')
+      setError(err instanceof Error ? err.message : "Failed to submit");
     } finally {
-      setSubmitting(false)
+      setSubmitting(false);
     }
   }
 
   // Handle Enter to submit (Shift+Enter for newline)
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault()
-      handleSubmit(e)
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSubmit(e);
     }
-  }
+  };
 
   return (
     <div className="w-full max-w-3xl mx-auto px-4 mt-auto">
@@ -97,7 +100,7 @@ export default function ScoreForm({ useCase, onScored }: Props) {
                 className="w-full resize-none rounded-xl border border-hairline bg-ink px-3 py-2 text-sm text-paper placeholder:text-muted/50 focus:border-brass/60 focus:outline-none"
               />
             </div>
-            
+
             <div className="flex gap-4">
               <div className="flex-1">
                 <label className="block text-[10px] uppercase tracking-widest text-muted mb-1.5 font-mono">
@@ -110,6 +113,20 @@ export default function ScoreForm({ useCase, onScored }: Props) {
                   placeholder="session id"
                   className="w-full rounded-xl border border-hairline bg-ink px-3 py-1.5 font-mono text-xs text-paper placeholder:text-muted/50 focus:border-brass/60 focus:outline-none"
                 />
+              </div>
+              <div className="flex-1">
+                <label className="block text-[10px] uppercase tracking-widest text-muted mb-1.5 font-mono">
+                  Geography
+                </label>
+                <select
+                  value={geography}
+                  onChange={(e) => setGeography(e.target.value)}
+                  className="w-full rounded-xl border border-hairline bg-ink px-3 py-1.5 font-mono text-xs text-paper"
+                >
+                  <option value="US">US</option>
+                  <option value="EU">EU</option>
+                  <option value="APAC">APAC</option>
+                </select>
               </div>
             </div>
           </div>
@@ -125,7 +142,9 @@ export default function ScoreForm({ useCase, onScored }: Props) {
                   type="button"
                   onClick={() => setModel(p)}
                   className={`rounded-full px-3 py-1 uppercase tracking-wider transition-colors ${
-                    model === p ? 'bg-brass text-ink font-semibold' : 'text-muted hover:text-paper'
+                    model === p
+                      ? "bg-brass text-ink font-semibold"
+                      : "text-muted hover:text-paper"
                   }`}
                 >
                   {p}
@@ -138,9 +157,9 @@ export default function ScoreForm({ useCase, onScored }: Props) {
               type="button"
               onClick={() => setShowAdvanced((v) => !v)}
               className={`flex items-center gap-1.5 rounded-full border px-3 py-1 font-mono text-[10px] transition-colors ${
-                showAdvanced 
-                  ? 'border-brass bg-brass/10 text-brass' 
-                  : 'border-hairline text-muted hover:border-brass/40 hover:text-paper'
+                showAdvanced
+                  ? "border-brass bg-brass/10 text-brass"
+                  : "border-hairline text-muted hover:border-brass/40 hover:text-paper"
               }`}
             >
               <SlidersHorizontal size={10} />
@@ -161,10 +180,13 @@ export default function ScoreForm({ useCase, onScored }: Props) {
           </button>
         </div>
       </form>
-      {error && <p className="mt-2 px-2 text-xs text-block font-mono">{error}</p>}
+      {error && (
+        <p className="mt-2 px-2 text-xs text-block font-mono">{error}</p>
+      )}
       <p className="mt-2 text-center text-[10px] text-muted/40">
-        ControlPlane Checker can monitor, audit, and override LLM outputs in real-time.
+        ControlPlane Checker can monitor, audit, and override LLM outputs in
+        real-time.
       </p>
     </div>
-  )
+  );
 }

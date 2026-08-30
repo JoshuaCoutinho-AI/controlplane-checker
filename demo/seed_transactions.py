@@ -18,11 +18,11 @@ SAMPLES = [
     # clean, healthy responses -> should PASS
     {
         "prompt": "What's the weather like for outdoor filming today?",
-        "response": "Clear skies expected, light breeze around 10 km/h, good conditions for filming.",
+        "response": "Clear skies and a light breeze make conditions good for outdoor filming.",
         "model": "gemini",
     },
     {
-        "prompt": "Summarize the Q3 revenue trend in two sentences.",
+        "prompt": "Context: Q3 revenue grew 8% quarter-over-quarter; margins held steady. Summarize it in two sentences.",
         "response": "Q3 revenue grew 8% quarter-over-quarter, driven mainly by the enterprise segment. Margins held steady despite the growth.",
         "model": "gemini",
     },
@@ -36,6 +36,12 @@ SAMPLES = [
     {
         "prompt": "Give me the support contact for this ticket.",
         "response": "Please reach out to john.doe@example.com or call 415-555-0199 for follow-up.",
+        "model": "gemini",
+    },
+    # fabricated person detail + PII -> hallucination/PII correlation BLOCK
+    {
+        "prompt": "Provide the customer escalation contact.",
+        "response": "Ava Patel owns the escalation; email ava.patel@example.com for follow-up.",
         "model": "gemini",
     },
     # expensive + low confidence -> should trigger cost_confidence_mismatch correlation
@@ -88,6 +94,8 @@ def main():
                     f"perf={result['checks']['performance']['score']:<3} "
                     f"cost={result['checks']['cost']['score']:<3} "
                     f"resp={result['checks']['responsibility']['score']:<3} "
+                    f"bias={result['checks']['bias']['score']:<3} "
+                    f"hall={result['checks']['hallucination']['score']:<3} "
                     f"compound={result['correlation']['compound_flags']}"
                 )
             except Exception as exc:

@@ -9,29 +9,50 @@ returns, never the original response text, once PII is found.
 
 import re
 
-from app.config import PII_PATTERNS, RESTRICTED_CATEGORIES, TOXICITY_KEYWORDS
+from app.config import (
+    GEOGRAPHY_POLICIES,
+    PII_PATTERNS,
+    RESTRICTED_CATEGORIES,
+    TOXICITY_KEYWORDS,
+)
 
 _COMPILED_PII = {name: re.compile(pattern) for name, pattern in PII_PATTERNS.items()}
+_COMPILED_TOXICITY = [
+    re.compile(pattern, re.IGNORECASE) for pattern in TOXICITY_KEYWORDS
+]
 
 
-def redact(text: str) -> str:
+def _patterns(geography: str) -> dict:
+    return {
+        **PII_PATTERNS,
+        **GEOGRAPHY_POLICIES.get(geography, GEOGRAPHY_POLICIES["US"])[
+            "additional_pii_patterns"
+        ],
+    }
+
+
+def redact(text: str, geography: str = "US") -> str:
     redacted = text
-    for name, pattern in _COMPILED_PII.items():
+    for name, pattern in {
+        key: re.compile(value) for key, value in _patterns(geography).items()
+    }.items():
         redacted = pattern.sub(f"[REDACTED_{name.upper()}]", redacted)
     return redacted
 
 
-def run(response: str) -> dict:
+def run(response: str, geography: str = "US") -> dict:
     flags = []
     pii_found = False
 
-    for name, pattern in _COMPILED_PII.items():
+    for name, pattern in {
+        key: re.compile(value) for key, value in _patterns(geography).items()
+    }.items():
         if pattern.search(response):
             pii_found = True
             flags.append(f"pii_{name}")
 
     lowered = response.lower()
-    toxicity_hits = sum(1 for phrase in TOXICITY_KEYWORDS if phrase in lowered)
+    toxicity_hits = sum(1 for pattern in _COMPILED_TOXICITY if pattern.search(response))
     toxicity = min(1.0, toxicity_hits * 0.5)
     if toxicity_hits:
         flags.append("toxicity_keyword")
@@ -57,5 +78,5 @@ def run(response: str) -> dict:
         "flags": flags,
         # never surface raw response text from this check — only redacted,
         # and full-length (not truncated), so nothing real gets cut off
-        "redacted_excerpt": redact(response),
+        "redacted_excerpt": redact(response, geography),
     }

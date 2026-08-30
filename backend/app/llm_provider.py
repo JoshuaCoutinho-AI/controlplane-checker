@@ -44,6 +44,16 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.7-flash")
 
 
+def has_configured_provider(provider: str | None = None) -> bool:
+    """Return whether a provider is configured, without making a network call."""
+    chosen = (provider or LLM_PROVIDER).lower()
+    if chosen == "ollama":
+        return bool(OLLAMA_HOST and OLLAMA_MODEL)
+    if chosen == "gemini":
+        return bool(GEMINI_API_KEY and GEMINI_MODEL)
+    return False
+
+
 def _generate_ollama(prompt: str) -> str:
     url = f"{OLLAMA_HOST}/api/generate"
     payload = json.dumps(
@@ -56,6 +66,16 @@ def _generate_ollama(prompt: str) -> str:
         with urllib.request.urlopen(req, timeout=60) as resp:
             data = json.loads(resp.read().decode())
             return (data.get("response") or "").strip()
+    except urllib.error.HTTPError as exc:
+        body = exc.read().decode(errors="ignore")
+        if exc.code == 404:
+            raise LLMProviderError(
+                f"The Ollama model '{OLLAMA_MODEL}' is not installed. "
+                f"Run `ollama pull {OLLAMA_MODEL}` and wait for it to finish."
+            ) from exc
+        raise LLMProviderError(
+            f"Ollama returned HTTP {exc.code}: {body[:300]}"
+        ) from exc
     except urllib.error.URLError as exc:
         raise LLMProviderError(
             f"Could not reach Ollama at {OLLAMA_HOST} ({exc}). "
@@ -76,10 +96,12 @@ def _generate_gemini(prompt: str) -> str:
     )
     payload = json.dumps({"contents": [{"parts": [{"text": prompt}]}]}).encode()
     req = urllib.request.Request(
-        url, data=payload, headers={
+        url,
+        data=payload,
+        headers={
             "Content-Type": "application/json",
             "x-goog-api-key": GEMINI_API_KEY,
-        }
+        },
     )
     try:
         with urllib.request.urlopen(req, timeout=30) as resp:
