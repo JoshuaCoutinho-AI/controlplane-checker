@@ -4,7 +4,7 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - DATABASE_URL=sqlite:///./controlplane.db
+      - DATABASE_URL=sqlite:////app/data/controlplane.db
       # Real LLM generation config — see .env.example for details.
       # Override any of these with `docker compose --env-file .env up`
       # or by exporting them in your shell before `docker compose up`.
@@ -18,7 +18,7 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
-      - backend_data:/app
+      - backend_data:/app/data
 
   frontend:
     build: ./frontend

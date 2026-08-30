@@ -72,11 +72,14 @@ def _generate_gemini(prompt: str) -> str:
         )
     url = (
         f"https://generativelanguage.googleapis.com/v1beta/models/"
-        f"{GEMINI_MODEL}:generateContent?key={GEMINI_API_KEY}"
+        f"{GEMINI_MODEL}:generateContent"
     )
     payload = json.dumps({"contents": [{"parts": [{"text": prompt}]}]}).encode()
     req = urllib.request.Request(
-        url, data=payload, headers={"Content-Type": "application/json"}
+        url, data=payload, headers={
+            "Content-Type": "application/json",
+            "x-goog-api-key": GEMINI_API_KEY,
+        }
     )
     try:
         with urllib.request.urlopen(req, timeout=30) as resp:
