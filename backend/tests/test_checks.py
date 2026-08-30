@@ -72,7 +72,10 @@ def test_performance_dynamic_budget():
 
     res_relaxed = performance.run("prompt", "response", latency_ms=2000, latency_budget_ms=4000)
     assert "latency_over_budget" not in res_relaxed["flags"]
-    assert res_relaxed["score"] == 100
+    # Blended score: 0.5*latency(100) + 0.5*confidence(70) = 85.
+    # Latency is perfect (within budget) but confidence is 0.7 because the
+    # short placeholder response triggers the response_too_short penalty.
+    assert res_relaxed["score"] == 85
 
 
 def test_router_use_case_thresholds():

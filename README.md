@@ -159,6 +159,10 @@ broadcast to all connected dashboards over WebSocket.
 Extend `backend/app/correlation.py`'s `RULES` list to add more — each rule is a small function over
 the three check outputs, kept deliberately simple so it ships reliably under time pressure.
 
+## Design assumptions
+
+**Performance scoring blends latency and response-quality equally.** The performance check's overall score is always `0.5 × latency_score + 0.5 × confidence_heuristic_score`, so a fast-but-generic response will not reach a perfect 100 — this is intentional. The confidence heuristic penalises hedging language, high word-repetition, and suspiciously short responses without requiring a second model call.
+
 ## Development standards
 
 - **Branching**: `main` (protected, demo-stable) ← `dev` (integration) ← `feat/*`. No direct pushes to `main`.
