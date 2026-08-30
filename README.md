@@ -181,13 +181,11 @@ the three check outputs, kept deliberately simple so it ships reliably under tim
 - The responsibility check redacts PII **before** anything is persisted — raw PII is never written to
   the database, even in the tool's own demo store.
 
-## Roles
+## Team Members
 
-| Person | Owns |
-|---|---|
-| Narain Gopinath (Lead) | Correlation logic, demo script, submission checklist |
-| Raghav Ram (Frontend) | Dashboard UI, WebSocket live feed |
-| Joshua John (Backend) | Checks, severity router, integration |
+- Narain Gopinath
+- Joshua Coutinho
+- Raghav Ramaswamy
 
 ## Out of scope this sprint
 
