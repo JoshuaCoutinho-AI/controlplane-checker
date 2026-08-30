@@ -145,7 +145,6 @@ async def override(score_id: str, req: OverrideRequest, db: Session = Depends(ge
         record.decision_reason = f"Override applied: Blocked by human. Reason: {req.reason or 'No reason provided'}"
     elif req.status == "none":
         # Recalculate original routing logic
-        from app.proxy import score_and_route
         # In a full app, we would re-run router.decide. For simplicity, we restore status:
         record.override_status = "none"
         record.override_reason = None

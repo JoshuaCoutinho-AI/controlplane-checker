@@ -8,7 +8,7 @@ import { Shield, Sparkles, Layers, Menu, X } from 'lucide-react'
 export default function Dashboard() {
   const { records, connected } = useLiveFeed(100)
   const [selectedUseCase, setSelectedUseCase] = useState('customer_support')
-  const [policies, setPolicies] = useState<any>({})
+  const [policies, setPolicies] = useState<Record<string, { name: string; description: string; latency_budget_ms: number; score_block_below: number; score_log_below: number }>>({})
   const [showMobileSidebar, setShowMobileSidebar] = useState(false)
   const chatEndRef = useRef<HTMLDivElement>(null)
 

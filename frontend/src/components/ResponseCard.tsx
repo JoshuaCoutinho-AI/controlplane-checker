@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { ScoredResponse } from '../types'
 import SeverityBadge from './SeverityBadge'
-import { ShieldCheck, ShieldAlert, MessageSquare, CornerDownRight, Check, X, RefreshCw } from 'lucide-react'
+import { ShieldAlert, MessageSquare, CornerDownRight, RefreshCw } from 'lucide-react'
 
 const GAUGE_COLOR = (score: number) =>
   score >= 70 ? 'text-pass' : score >= 40 ? 'text-log' : 'text-block'
@@ -33,7 +33,7 @@ export default function ResponseCard({ record }: { record: ScoredResponse }) {
   const [submittingFeedback, setSubmittingFeedback] = useState(false)
   const [submittingOverride, setSubmittingOverride] = useState(false)
 
-  const { id, checks, correlation, severity, decision_reason, timestamp, model, session_id, generated, llm_provider, override_status, override_reason, feedback_text } =
+  const { id, checks, correlation, severity, decision_reason, timestamp, model, generated, llm_provider, override_status, feedback_text } =
     record
 
   const time = new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
